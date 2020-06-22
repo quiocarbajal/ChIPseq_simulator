@@ -144,5 +144,5 @@ ggplot(data = result$average_table, aes(x = coordinates, y = Average_signal, col
 #   average_table[1,i] <- mean(reads_table[,i])
 #     }    
 # }
-
+TRYING something new
 
