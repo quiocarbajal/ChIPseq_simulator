@@ -1,5 +1,6 @@
 library(tidyverse)
 library(gridExtra)
+library(ggpmisc)
 
 
 simulate_chip <- function(prot_l=990, prot_r=1010, prot_length=40, no_cut_l=0, no_cut_r=0,
@@ -117,9 +118,19 @@ simulate_chip <- function(prot_l=990, prot_r=1010, prot_length=40, no_cut_l=0, n
                        "no_cut_l" = no_cut_l, "no_cut_r"= no_cut_r, "cut_l"= cut_l,"cut_r"=cut_r,
                        "repetitions"= repetitions, "length"= length, "read_length"= read_length, "dna_top_size"= dna_top_size)
   
-  #Create a function for graphing (a way to store the graph)
+  #Create a graph
+  y_axis_max <- average_table %>% filter(Strand=="Fw_plus_Rv") %>% select("Average_signal") %>% max()
   
-return(list("reads_matrix_F" = reads_table_F, "reads_matrix_R" = reads_table_R, "average_table" =average_table, "parameters" = parameters))
+  
+  table1 <- tibble(x=0,y= y_axis_max + 0.3, tb=list(result$parameters))
+  
+  print(ggplot(data = result$average_table, aes(x = coordinates, y = Average_signal, color = Strand)) +
+    geom_line() +
+    geom_table(data= table1, aes(x, y, label = tb), size = 1.5))
+
+  return(list("average_table" =average_table, "parameters" = parameters))
+  # Add the line below to return also the matrixes
+  # "reads_matrix_F" = reads_table_F, "reads_matrix_R" = reads_table_R,
 }
 
 
@@ -127,11 +138,3 @@ return(list("reads_matrix_F" = reads_table_F, "reads_matrix_R" = reads_table_R, 
 result <- simulate_chip(repetitions=2000, prot_l = 950, prot_r =1050, prot_length = 45, 
                         read_length = 75, dna_top_size=300, cut_r = 10)
 
-View(result[["parameters"]])
-
-table1 <- grid.table(select(result$parameters, 1:5))
-table2 <- tableGrob(select(result$parameters, 6:11))
-
-ggplot(data = result$average_table, aes(x = coordinates, y = Average_signal, color = Strand)) +
-  geom_line() +
-  annotation_custom(table1, xmin=0, xmax=500, ymin=1, ymax=1.5)
