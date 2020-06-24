@@ -3,9 +3,9 @@ library(gridExtra)
 library(ggpmisc)
 
 
-simulate_chip <- function(prot_mean=500, prot_sd=100, prot_length=40, no_cut_l=0, no_cut_r=0,
+simulate_chip <- function(prot_mean=500, prot_sd=30, prot_length=40, no_cut_l=0, no_cut_r=0,
                           cut_l=0, cut_r=0, repetitions=1000, length=1000, read_length=75,
-                          dna_top_size=500, dna_bottom_size=75) { 
+                          dna_top_size=250, dna_bottom_size=75, plot = TRUE) { 
   # prot_mean       : the coordinate in which the protein center can be found (mean of normal distribution)
   # prot_length     : length of DNA covered by the protein, this is a "no-cut" zone.
   # no_cut_l        : coordinates, relative to the left side of the protein, in which no cuts are generated  (input as "c(-10,0)", beeing 0 the left side of the protein)
@@ -16,6 +16,7 @@ simulate_chip <- function(prot_mean=500, prot_sd=100, prot_length=40, no_cut_l=0
   # read_length     : length of sequencing, determined by the sequencer (75, 150, etc)
   # dna_top_size    : max DNA length. Any random piece of DNA above this threshold will be discarded
   # dna_bottom_size : minimal DNA length. Any random piece of DNA below this threshold will be discarded. If you are purifying your adapter-ligated chipped DNA with ampure beads using 1X buffer, the max size you keep is about 200-150 bp, minus the adapter (75 bp), you get DNA pieces of at least 75-125 bp long 
+  # plot            : Do you want to get the plots automatically? You might want to change it to "FALSE" for composite peaks
   
   i <- 1
   #reads_table <-  as_tibble(matrix(ncol = length, nrow = repetitions)) #This was before it gave Fw and Rv strand information
@@ -122,6 +123,9 @@ simulate_chip <- function(prot_mean=500, prot_sd=100, prot_length=40, no_cut_l=0
                        "dna_top_size"= dna_top_size, "dna_bottom_size" = dna_bottom_size)
   
   #Create a graph
+  if (plot) {
+    
+  
   y_axis_max <- average_table %>% filter(Strand=="Fw_plus_Rv") %>% select("Average_signal") %>% max()
   
   
@@ -129,10 +133,83 @@ simulate_chip <- function(prot_mean=500, prot_sd=100, prot_length=40, no_cut_l=0
   
   print(ggplot(data = average_table, aes(x = coordinates, y = Average_signal, color = Strand)) +
     geom_line() +
-    geom_table(data= table1, aes(x, y, label = tb), size = 4))
+    geom_table(data= table1, aes(x, y, label = tb), size = 3.5))
+  }
 
   # Return average and parameters tables
-  return(list("average_table" =average_table, "parameters" = parameters))
-  # Add the line below to return also the matrixes
-  # "reads_matrix_F" = reads_table_F, "reads_matrix_R" = reads_table_R,
+    return(list("average_table" =average_table, "parameters" = parameters))
+  
+    # Add the line below to return also the matrixes
+    # "reads_matrix_F" = reads_table_F, "reads_matrix_R" = reads_table_R,
+}
+
+#################################################################
+############### SIMULATE COMPOSITE PEAKS FUNCTION ###############
+#################################################################
+
+simulate_composite_peaks <- function(parameters){
+  #parameters is a list containing all the parameters that can be modified in the simulate_peak function. Use following model (Cmnd+Shift+c to uncomment all the lines together):
+    # a <- list(prot_mean = c(500,550), prot_sd = c(30,30), prot_length = c(35,35), 
+    # no_cut_l = c(c(0,0),c(0,0)), no_cut_r = c(c(0,0),c(0,0)), cut_l = c(0,0), cut_r = c(0,1),
+    # repetitions = c(2000,2000), length = c(2000,2000), read_length = c(75,75), 
+    # dna_top_size = c(250,250), dna_bottom_size = c(85,85), plot = c(FALSE,FALSE),
+    # number_peaks = 2, names=c("Peak1", "Peak2"))
+  
+  # Call "simulate_peak" function for every peak in the parameters list
+  results <- list()
+  for (i in (1:parameters$number_peaks[[1]])) {
+    results[[ parameters$names[[i]] ]] <- simulate_chip(prot_mean = parameters$prot_mean[[i]],
+                                               prot_sd = parameters$prot_sd[[i]],
+                                               prot_length = parameters$prot_length[[i]],
+                                               no_cut_l = parameters$no_cut_l[[i]],
+                                               no_cut_r = parameters$no_cut_r[[i]],
+                                               cut_l = parameters$cut_l[[i]],
+                                               cut_r = parameters$cut_r[[i]],
+                                               repetitions = parameters$repetitions[[i]],
+                                               length = parameters$length[[i]],
+                                               read_length = parameters$read_length[[i]],
+                                               dna_top_size = parameters$dna_top_size[[i]],
+                                               dna_bottom_size =parameters$dna_bottom_size[[i]],
+                                               plot = parameters$plot[[i]])
+    # Add the peak name info to each result table
+    results[[c(i,1)]] <- results[[c(i,1)]] %>% mutate(peak_name = parameters$names[[i]])
+  }
+  
+  composite_result <- tibble()
+  composite_parameters <- tibble()
+  for (n in (1:parameters$number_peaks[[1]]) ) {
+    composite_result <- bind_rows(composite_result, results[[c(n,1)]])
+    composite_parameters <- bind_rows(composite_parameters, results[[c(n,2)]])
+    n <- n+1
+  }
+  
+  composite_peak <- composite_result %>% group_by(coordinates, Strand) %>% 
+                    summarise("Average_signal" = sum(Average_signal), peak_name = "composite_peak") %>% ungroup() #Is ungroup necessary?
+  composite_result <- bind_rows(composite_result, composite_peak)
+  
+  # Print plots
+  y_axis_max <- composite_result %>% filter(Strand=="Fw_plus_Rv") %>% select("Average_signal") %>% max()
+  table1 <- tibble(x = 0, y = y_axis_max + (y_axis_max*0.2), tb=list(composite_parameters))
+  print(ggplot(data = composite_result, aes(x = coordinates, y = Average_signal, color = Strand, linetype = peak_name)) +
+    geom_line() +
+    geom_table(data= table1, aes(x, y, label = tb), size = 3.5))
+  
+  y_axis_max <- composite_result %>% filter(Strand=="Fw_plus_Rv", peak_name == "composite_peak") %>% select("Average_signal") %>% max()
+  table1 <- tibble(x = 0, y = y_axis_max + (y_axis_max*0.2), tb=list(composite_parameters))
+  print(ggplot(data = filter(composite_result, peak_name == "composite_peak"), 
+               aes(x = coordinates, y = Average_signal, color = Strand, linetype = peak_name)) +
+          geom_line() +
+          geom_table(data= table1, aes(x, y, label = tb), size = 3.5))
+  
+  y_axis_max <- composite_result %>% filter(Strand=="Fw_plus_Rv", peak_name != "composite_peak") %>% select("Average_signal") %>% max()
+  table1 <- tibble(x = 0, y = y_axis_max + (y_axis_max*0.2), tb=list(composite_parameters))
+  print(ggplot(data = filter(composite_result, peak_name != "composite_peak"), 
+               aes(x = coordinates, y = Average_signal, color = Strand, linetype = peak_name)) +
+          geom_line() +
+          geom_table(data= table1, aes(x, y, label = tb), size = 3.5))
+  
+  #geom_table(data= table1, aes(x, y, label = tb), size = 3.5))
+  
+  # Return table
+  return(composite_result)
 }
