@@ -2,7 +2,6 @@ library(tidyverse)
 library(gridExtra)
 library(ggpmisc)
 
-
 simulate_chip <- function(prot_mean=500, prot_sd=30, prot_length=40, no_cut_l=0, no_cut_r=0,
                           cut_l=0, cut_r=0, repetitions=1000, length=1000, read_length=75,
                           dna_top_size=250, dna_bottom_size=75, plot = TRUE, intensity=1) { 
@@ -32,7 +31,7 @@ simulate_chip <- function(prot_mean=500, prot_sd=30, prot_length=40, no_cut_l=0,
   while (i < repetitions) {
     #determine prot coordinates
     prot_center <- as.integer(rnorm(1, mean=prot_mean, sd=prot_sd))
-    prot_left <-  prot_center - (prot_length/2)
+    prot_left <-  as.integer(prot_center - (prot_length/2))
     prot_right <- prot_left + prot_length
     
     # determine left and right cuts
@@ -41,7 +40,7 @@ simulate_chip <- function(prot_mean=500, prot_sd=30, prot_length=40, no_cut_l=0,
     if (cut_l > 0) {
         stop('cut_l should be a negative integer, representing the position of the cut relative to the leftmost protein boundary')
       }
-    if (prot_left + cut_l > left_cut) {
+    if (cut_l < 0 & (prot_left + cut_l) > left_cut)  {
         left_cut <- prot_left + cut_l
     }
     
@@ -50,7 +49,7 @@ simulate_chip <- function(prot_mean=500, prot_sd=30, prot_length=40, no_cut_l=0,
     if (cut_r < 0) {
       stop('cut_r should be a positive integer, representing the position of the cut relative to the leftmost protein boundary')
       }
-    if (prot_right + cut_r < right_cut) {
+    if (cut_r > 0 & (prot_right + cut_r) < right_cut) {
         right_cut <- prot_right + cut_r
       }
     
@@ -95,6 +94,7 @@ simulate_chip <- function(prot_mean=500, prot_sd=30, prot_length=40, no_cut_l=0,
       reads_table_F[i,left_cut:(left_cut+read_length)] <- intensity
       reads_table_R[i,(right_cut-read_length):right_cut] <- intensity
       i = i+1
+      next
     }
     # If left cut is of boundaries...
     if ( (right_cut - left_cut) < dna_top_size & 
@@ -271,21 +271,19 @@ a <- list(prot_mean = c(500,520), prot_sd = c(70,70), prot_length = c(50,50),
 
 x <- simulate_composite_peaks(a)
 
-#trim33 profile is reproduced when the distance between the peak is slightly smaller than the size of the protein
-
 ####### 3 peaks #############
-a <- list(prot_mean = c(2000,3000,4000), prot_sd = c(200,200,200), prot_length = c(40,40,40), 
+a <- list(prot_mean = c(2000,3000,4000), prot_sd = c(100,100,100), prot_length = c(40,40,40),
           no_cut_l = c(0,0,0), no_cut_r = c(0,0,0), cut_l = c(0,0,-1), cut_r = c(1,0,0),
-          repetitions = c(2000,2000,2000), length = c(6000,6000,6000), read_length = c(75,75,75), 
+          repetitions = c(2000,2000,2000), length = c(6000,6000,6000), read_length = c(75,75,75),
           dna_top_size = c(600,600,600), dna_bottom_size = c(85,85,85), plot = c(FALSE,FALSE,FALSE),
           number_peaks = 3, names=c("Peak1", "Peak2","a"), intensity=c(4,1,4))
 x <- simulate_composite_peaks(a)
 
-
-####### 4 peaks #############
-a <- list(prot_mean = c(1000,1500,1500,2000), prot_sd = c(100,200,200,100), prot_length = c(40,40,40,40), 
+# 
+# ####### 4 peaks #############
+a <- list(prot_mean = c(1000,1500,1500,2000), prot_sd = c(100,200,200,100), prot_length = c(40,40,40,40),
           no_cut_l = c(0,0,0,0), no_cut_r = c(0,0,0,0), cut_l = c(0,0,0,-1), cut_r = c(1,0,0,0),
-          repetitions = c(2000,2000,2000,2000), length = c(6000,6000,6000,6000), read_length = c(75,75,75,75), 
+          repetitions = c(2000,2000,2000,2000), length = c(6000,6000,6000,6000), read_length = c(75,75,75,75),
           dna_top_size = c(350,300,300,300), dna_bottom_size = c(85,85,85,85), plot = c(FALSE,FALSE,FALSE,FALSE),
           number_peaks = 4, names=c("Peak1", "Peak2","a","b"), intensity=c(4,1,1,4))
 x <- simulate_composite_peaks(a)
