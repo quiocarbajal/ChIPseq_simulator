@@ -4,7 +4,7 @@ library(ggpmisc)
 
 simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 40, no_cut_l = c(0,0), no_cut_r = c(0,0),
                           cut_l = 0, cut_r = 0, repetitions = 1000, length = 1000, read_length = 75,
-                          number_cuts_per_kilobase = 10, dna_bottom_size = 85, plot = TRUE, intensity = 1) { 
+                          number_cuts_per_kilobase = 10, dna_bottom_size = 85, plot = TRUE, intensity = 1, PE_full_length_read = FALSE) { 
   # prot_mean       : the coordinate in which the protein center can be found (mean of normal distribution)
   # prot_length     : length of DNA covered by the protein, this is a "no-cut" zone.
   # no_cut_l        : coordinates, relative to the left side of the protein, in which no cuts are generated  (input as "c(-10,0)", beeing 0 the left side of the protein)
@@ -18,6 +18,7 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 40, no_cu
   # dna_bottom_size : minimal DNA length. Any random piece of DNA below this threshold will be discarded. If you are purifying your adapter-ligated chipped DNA with ampure beads using 1X buffer, the max size you keep is about 200-150 bp, minus the adapter (75 bp), you get DNA pieces of at least 75-125 bp long 
   # plot            : Do you want to get the plots automatically? You might want to change it to "FALSE" for composite peaks
   # intensity       : Intensity of the peaks, for doing composite peaks
+  # PE_full_length_read : If TRUE, then the matrix is filled with "intensity" values all over the length of the piece of DNA, not just at "read_length" on each side. With this, Forward, reverse and Fw+Rv strands profiles will be equal.
   
   # Set index to count succesful iterations
   i <- 1
@@ -103,7 +104,7 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 40, no_cu
     
     left_cut <- max(cuts[cuts[] < prot_left])
     right_cut <- min(cuts[cuts[] > prot_right])
-    
+  
     #Check it is bigger than bottom DNA size
     if (right_cut - left_cut < dna_bottom_size) {
       next
@@ -111,14 +112,16 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 40, no_cu
     
     #########
     # Fill the matrix according to left/right cuts and intensity of the signal
-    
+    if (PE_full_length_read) {
+      reads_table_F[i,left_cut:right_cut] <- intensity
+      reads_table_R[i,left_cut:right_cut] <- intensity
+      i = i + 1
+    } else {
     reads_table_F[i,left_cut:(left_cut + read_length)] <- intensity
     reads_table_R[i,(right_cut - read_length):right_cut] <- intensity
     i = i + 1
+    }
   }
-  
-  # FINISH OF ITERATIONS #######
-  #
   
   #Calculate average value per coordinate
   i <- 1
@@ -183,23 +186,24 @@ simulate_composite_peaks <- function(parameters){
   
   # Call "simulate_chip" function for every peak in the parameters list
   results <- list()
-  for (i in (1:parameters$number_peaks[[1]])) {
-    results[[ parameters$names[[i]] ]] <- simulate_chip(prot_mean = parameters$prot_mean[[i]],
-                                               prot_sd = parameters$prot_sd[[i]],
-                                               prot_length = parameters$prot_length[[i]],
-                                               #no_cut_l = parameters$no_cut_l[[i]],
-                                               #no_cut_r = parameters$no_cut_r[[i]],
-                                               cut_l = parameters$cut_l[[i]],
-                                               cut_r = parameters$cut_r[[i]],
-                                               repetitions = parameters$repetitions[[i]],
-                                               length = parameters$length[[i]],
-                                               read_length = parameters$read_length[[i]],
-                                               number_cuts_per_kilobase = parameters$number_cuts_per_kilobase[[i]],
-                                               dna_bottom_size =parameters$dna_bottom_size[[i]],
-                                               plot = parameters$plot[[i]],
-                                               intensity = parameters$intensity[[i]])
+  for (w in (1:parameters$number_peaks[[1]])) {
+    results[[ parameters$names[[w]] ]] <- simulate_chip(prot_mean = parameters$prot_mean[[w]],
+                                               prot_sd = parameters$prot_sd[[w]],
+                                               prot_length = parameters$prot_length[[w]],
+                                               no_cut_l = parameters$no_cut_l[[w]],
+                                               no_cut_r = parameters$no_cut_r[[w]],
+                                               cut_l = parameters$cut_l[[w]],
+                                               cut_r = parameters$cut_r[[w]],
+                                               repetitions = parameters$repetitions[[w]],
+                                               length = parameters$length[[w]],
+                                               read_length = parameters$read_length[[w]],
+                                               number_cuts_per_kilobase = parameters$number_cuts_per_kilobase[[w]],
+                                               dna_bottom_size = parameters$dna_bottom_size[[w]],
+                                               plot = parameters$plot[[w]],
+                                               intensity = parameters$intensity[[w]],
+                                               PE_full_length_read = parameters$PE_full_length_read[[w]])
     # Add the peak name info to each result table
-    results[[c(i,1)]] <- results[[c(i,1)]] %>% mutate(peak_name = parameters$names[[i]])
+    results[[c(w,1)]] <- results[[c(w,1)]] %>% mutate(peak_name = parameters$names[[w]])
   }
   # Create tibbles to combine peaks information
   composite_result <- tibble()
@@ -246,9 +250,9 @@ simulate_composite_peaks <- function(parameters){
 ############################################################################################################
 ### EXAMPLE OF SINGLE PEAK
 ############################################################################################################
-# result <- simulate_chip(repetitions=1000, prot_mean = 500, prot_sd =50, prot_length = 35,
-#                         read_length = 50, dna_bottom_size = 85, length=2000,
-#                         intensity=1)
+# result <- simulate_chip(repetitions = 1000, prot_mean = 500, prot_sd = 50, prot_length = 35,
+#                         read_length = 50, dna_bottom_size = 85, length = 2000,
+#                         intensity = 1, PE_full_length_read = TRUE)
 ############################################################################################################
 ### EXAMPLE OF COMPOSITE PEAK
 ############################################################################################################
@@ -263,12 +267,23 @@ simulate_composite_peaks <- function(parameters){
 # x <- simulate_composite_peaks(a)
 # 
 ####### 3 peaks #############
-# a <- list(prot_mean = c(2100,3000,3900), prot_sd = c(250,100,250), prot_length = c(40,40,40),
-#           no_cut_l = c(c(0,0),c(0,0), c(0,0)), no_cut_r = c(c(0,0),c(0,0), c(0,0)), cut_l = c(0,0,-1), cut_r = c(1,0,0),
-#           repetitions = c(4000,4000,4000), length = c(6000,6000,6000), read_length = c(150,150,150),
+# a <- list(prot_mean = c(2100,3000,3900), 
+#           prot_sd = c(250,100,250), 
+#           prot_length = c(40,40,40),
+#           no_cut_l = list(c(0,0),c(0,0), c(0,0)), 
+#           no_cut_r = list(c(0,0),c(0,0), c(0,0)), 
+#           cut_l = c(0,0,-1), 
+#           cut_r = c(1,0,0),
+#           repetitions = c(4000,4000,4000), 
+#           length = c(6000,6000,6000), 
+#           read_length = c(150,150,150),
 #           number_cuts_per_kilobase = c(2,2,2),
-#           dna_bottom_size = c(85,85,85), plot = c(FALSE,FALSE,FALSE),
-#           number_peaks = 3, names=c("Peak1", "Peak2","a"), intensity=c(5,2,5))
+#           dna_bottom_size = c(85,85,85), 
+#           plot = c(FALSE,FALSE,FALSE),
+#           number_peaks = c(3,3,3),
+#           names = c("Peak1", "Peak2","Peak3"), 
+#           intensity = c(5,2,5),
+#           PE_full_length_read = c(TRUE,TRUE,TRUE))
 # x <- simulate_composite_peaks(a)
 
 # #
@@ -279,3 +294,4 @@ simulate_composite_peaks <- function(parameters){
 #           dna_top_size = c(350,300,300,300), dna_bottom_size = c(85,85,85,85), plot = c(FALSE,FALSE,FALSE,FALSE),
 #           number_peaks = 4, names=c("Peak1", "Peak2","a","b"), intensity=c(4,1,1,4))
 # x <- simulate_composite_peaks(a)
+# 
