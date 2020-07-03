@@ -1,6 +1,9 @@
 library(tidyverse)
 library(gridExtra)
 library(ggpmisc)
+# Corrected parameters table to show prot_mean
+# Parameters table now show double parameters as one paramter separated by coma
+# For mult_peak calling now if you want to put the same value for all peaks then you can put it only once
 
 simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cut_l = c(0,0), no_cut_r = c(0,0),
                           cut_l = 0, cut_r = 0, repetitions = 1000, length = 1000, read_length = 75,
@@ -210,15 +213,22 @@ simulate_composite_peaks <- function(parameters){
     # number_peaks = 2, names=c("Peak1", "Peak2"))
   
   # Call "simulate_chip" function for every peak in the parameters list
+  # Make list to store resuts
   results <- list()
-  for (i in 1:15) { #15 is the number of parameters toinput to the simulate_chip function
+  # For parameters that are only input once, repeat them many times as peaks there are
+  for (i in 1:15) { #15 is the number of parameters to input to the simulate_chip function
     if (length(parameters[[i]]) == 1) {
-      parameters[[i]] <- c(parameters[[i]],parameters[[i]],parameters[[i]])
+      while (length(parameters[[i]]) < parameters$number_peaks[[1]]) {
+        parameters[[i]] <- c(parameters[[i]],parameters[[i]])
+      }
+      a <- parameters[[i]]
+      parameters[[i]] <- a[1:parameters$number_peaks[[1]]]
+     # parameters[[i]] <- c(parameters[[i]],parameters[[i]],parameters[[i]])
     }
     
   }
   
-  
+  # Call simulate_peak() for all the peaks
   for (w in (1:parameters$number_peaks[[1]])) {
     results[[ parameters$names[[w]] ]] <- simulate_chip(prot_mean = parameters$prot_mean[[w]],
                                                prot_sd = parameters$prot_sd[[w]],
@@ -322,21 +332,28 @@ simulate_composite_peaks <- function(parameters){
 ####### 3 peaks #############
 a <- list(prot_mean = c(2100,3000,3900),
           prot_sd = c(200),
-          prot_length = c(30),
-          no_cut_l = list(c(0,0)),
-          no_cut_r = list(c(0,0)),
+          prot_length = c(30,30,30),
+          no_cut_l = list(c(0,0),c(0,0), c(0,0)),
+          no_cut_r = list(c(0,0),c(0,0), c(0,0)),
           cut_l = c(0,0,-1),
           cut_r = c(1,0,0),
-          repetitions = c(3000),
-          length = c(6000),
-          read_length = c(75),
+          repetitions = c(3000,3000,3000),
+          length = c(6000,6000,6000),
+          read_length = c(75,75,75),
           number_cuts_per_kb = c(3.8,2.3,3.8),
-          dna_bottom_size = c(85),
-          plot = c(FALSE),
-          number_peaks = c(3),
+          dna_bottom_size = c(85,85,85),
+          plot = c(FALSE,FALSE,FALSE),
+          number_peaks = c(3,3,3),
           names = c("Peak1", "Peak2","Peak3"),
           intensity = c(7,2,7),
-          PE_full_length_read = c(FALSE)
+          PE_full_length_read = c(FALSE,FALSE,FALSE))
+
+PE <- simulate_composite_peaks(a)
+PE[["peak_name"]] <- "PE"
+# combined <- bind_rows(filter(x, Strand == "Fw_plus_Rv" & peak_name == "composite_peak"), 
+#                       filter(PE, Strand == "Fw_plus_Rv" & peak_name == "composite_peak"))
+# 
+
 # #
 # # # ####### 4 peaks #############
 # a <- list(prot_mean = c(2100,3000,3000,3900),
@@ -357,3 +374,4 @@ a <- list(prot_mean = c(2100,3000,3900),
 #           intensity = c(7,2,7),
 #           PE_full_length_read = c(FALSE,FALSE,FALSE))
 # x <- simulate_composite_peaks(a)
+
