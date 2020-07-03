@@ -2,9 +2,9 @@ library(tidyverse)
 library(gridExtra)
 library(ggpmisc)
 
-simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 40, no_cut_l = c(0,0), no_cut_r = c(0,0),
+simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cut_l = c(0,0), no_cut_r = c(0,0),
                           cut_l = 0, cut_r = 0, repetitions = 1000, length = 1000, read_length = 75,
-                          number_cuts_per_kilobase = 10, dna_bottom_size = 85, plot = TRUE, intensity = 1, PE_full_length_read = FALSE) { 
+                          number_cuts_per_kb = 4, dna_bottom_size = 85, plot = TRUE, intensity = 1, PE_full_length_read = FALSE) { 
   # prot_mean       : the coordinate in which the protein center can be found (mean of normal distribution)
   # prot_length     : length of DNA covered by the protein, this is a "no-cut" zone.
   # no_cut_l        : coordinates, relative to the left side of the protein, in which no cuts are generated  (input as "c(-10,0)", beeing 0 the left side of the protein)
@@ -26,6 +26,7 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 40, no_cu
   # Set matrixes to store results
   reads_table_F <- matrix(nrow = repetitions, ncol = length)
   reads_table_R <- matrix(nrow = repetitions, ncol = length)
+  reads_dna_size <- matrix(nrow = repetitions, ncol = 1)
   reads_table_F[] <- 0
   reads_table_R[] <- 0
   coordinates <- 1:length
@@ -33,7 +34,7 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 40, no_cu
   colnames(reads_table_R) <- coordinates
   
   #########
-  while (i < repetitions) {
+  while (i < repetitions + 1) {
     # Prot. coordinates
     ## Check prot mean is within boundaries
     if (prot_mean < 0 | prot_mean > length) {
@@ -49,7 +50,7 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 40, no_cu
     #########
     # determine left and right cuts
     ##cuttable_dna_size <- length - no_cut_l[1] + no_cut_l[2] - no_cut_r[2] + no_cut_r[1]
-    number_of_cuts <- length * number_cuts_per_kilobase/1000
+    number_of_cuts <- as.integer(length * number_cuts_per_kb/1000)
     cuts <- as.integer(runif(number_of_cuts, min = 1, max = length))
     
     ## Check if cut_l should be used or not
@@ -86,9 +87,9 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 40, no_cu
                and both are the coordinate of the no cut zone relative to the protein position')
     }
     if (no_cut_r[2] > 0) {
-      no_cut_r_distal <- prot_right + no_cut_r[1]
-      no_cut_r_proximal <- prot_right + no_cut_r[2]
-      cuts <-  cuts[cuts[] < no_cut_r_proximal | cuts[] > no_cut_l_distal]
+      no_cut_r_distal <- prot_right + no_cut_r[2]
+      no_cut_r_proximal <- prot_right + no_cut_r[1]
+      cuts <-  cuts[cuts[] < no_cut_r_proximal | cuts[] > no_cut_r_distal]
     }
     if (length(cuts) == 0) {
       next
@@ -115,10 +116,12 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 40, no_cu
     if (PE_full_length_read) {
       reads_table_F[i,left_cut:right_cut] <- intensity
       reads_table_R[i,left_cut:right_cut] <- intensity
+      reads_dna_size[[i]] <- right_cut - left_cut
       i = i + 1
     } else {
     reads_table_F[i,left_cut:(left_cut + read_length)] <- intensity
     reads_table_R[i,(right_cut - read_length):right_cut] <- intensity
+    reads_dna_size[i,1] <- right_cut - left_cut
     i = i + 1
     }
   }
@@ -143,6 +146,9 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 40, no_cu
   # Transform matrixes to tibbles so it can be used in ggplot (I am not sure if this is actually necessary)
   average_table_F <- as_tibble(t(average_table_F))
   average_table_R <- as_tibble(t(average_table_R))
+  # Calculate DNA-size mean and sd
+  dna_statistics <- tibble("mean_DNA_size" = mean(reads_dna_size[,1]), "DNA_size_sd" = sd(reads_dna_size[,1])) %>%
+    mutate(mean_DNA_size = sprintf("%0.0f", mean_DNA_size), DNA_size_sd = sprintf("%0.0f", DNA_size_sd))
   
   # merge both tibbles, calculate sum of Fw and Rv, re-shape tibble so that it is useful for ggplot
   average_table <- left_join(average_table_F, average_table_R) %>% mutate("Fw_plus_Rv" = Fw + Rv) %>%
@@ -151,10 +157,20 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 40, no_cu
   average_table$Strand <- factor(average_table$Strand, levels = c("Fw_plus_Rv","Fw","Rv"))
   
   #Get parameters in a table
-  parameters <- tibble("prot_mean" = prot_mean, "prot_sd " = prot_sd, "prot_length" = prot_length, 
-                       "no_cut_l" = no_cut_l, "no_cut_r" = no_cut_r, "cut_l" = cut_l, "cut_r" = cut_r,
-                       "repetitions" = repetitions, "length" = length, "read_length" = read_length, 
-                       "dna_bottom_size" = dna_bottom_size)
+  parameters <- tibble("prot_mean " = prot_mean,
+                       "prot_sd " = prot_sd,
+                       "prot_length" = prot_length, 
+                       "no_cut_l" = paste(no_cut_l[1],no_cut_l[2], sep = ","), 
+                       "no_cut_r" = paste(no_cut_r[1],no_cut_r[2], sep = ","), 
+                       "cut_l" = cut_l, 
+                       "cut_r" = cut_r,
+                       "reps" = repetitions, 
+                       "read_length" = read_length, 
+                       "DNA_btm_size" = dna_bottom_size, 
+                       "number_cuts_per_kb" = number_cuts_per_kb, 
+                       "PE_FL_read" = PE_full_length_read,
+                       "DNA_mean_size" = dna_statistics$mean_DNA_size,
+                       "DNA_size_sd" = dna_statistics$DNA_size_sd)
   
   #Create a graph
   if (plot) {
@@ -164,13 +180,22 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 40, no_cu
     
     
     table1 <- tibble(x = 0, y = y_axis_max + (y_axis_max * 0.2), tb = list(parameters))
-    
+    # Agregate profile
     print(ggplot(data = average_table, aes(x = coordinates, y = Average_signal, color = Strand)) +
             geom_line() +
-            geom_table(data= table1, aes(x, y, label = tb), size = 3.5))
+            geom_table(data = table1, aes(x, y, label = tb), size = 3.5))
+    # DNA size plot
+    table2 <- tibble(x = 1, y = 1 , tb = list(dna_statistics))
+    reads_dna_size <- as_tibble_col(reads_dna_size[,1], column_name = "DNA_size" )
+    print(ggplot(data = reads_dna_size) +
+          geom_freqpoly(mapping = aes(x = DNA_size), binwidth = 3) +
+          geom_table_npc(data = dna_statistics,
+                         label = list(dna_statistics),
+                         npcx = 1, npcy = 1,
+                         size = 5))
   }
   # Return average and parameters tables
-  return(list("average_table" = average_table, "parameters" = parameters))
+  return(list("average_table" = average_table, "parameters" = parameters, "dna_statistics" = dna_statistics, "reads_dna_size" = reads_dna_size))
 }
 #################################################################
 ############### SIMULATE COMPOSITE PEAKS FUNCTION ###############
@@ -186,6 +211,14 @@ simulate_composite_peaks <- function(parameters){
   
   # Call "simulate_chip" function for every peak in the parameters list
   results <- list()
+  for (i in 1:15) { #15 is the number of parameters toinput to the simulate_chip function
+    if (length(parameters[[i]]) == 1) {
+      parameters[[i]] <- c(parameters[[i]],parameters[[i]],parameters[[i]])
+    }
+    
+  }
+  
+  
   for (w in (1:parameters$number_peaks[[1]])) {
     results[[ parameters$names[[w]] ]] <- simulate_chip(prot_mean = parameters$prot_mean[[w]],
                                                prot_sd = parameters$prot_sd[[w]],
@@ -197,7 +230,7 @@ simulate_composite_peaks <- function(parameters){
                                                repetitions = parameters$repetitions[[w]],
                                                length = parameters$length[[w]],
                                                read_length = parameters$read_length[[w]],
-                                               number_cuts_per_kilobase = parameters$number_cuts_per_kilobase[[w]],
+                                               number_cuts_per_kb = parameters$number_cuts_per_kb[[w]],
                                                dna_bottom_size = parameters$dna_bottom_size[[w]],
                                                plot = parameters$plot[[w]],
                                                intensity = parameters$intensity[[w]],
@@ -222,24 +255,24 @@ simulate_composite_peaks <- function(parameters){
   
   # Print plots
   y_axis_max <- composite_result %>% filter(Strand=="Fw_plus_Rv") %>% select("Average_signal") %>% max()
-  table1 <- tibble(x = 0, y = y_axis_max + (y_axis_max*0.2), tb=list(composite_parameters))
+  table1 <- tibble(x = 0, y = y_axis_max + (y_axis_max*0.2), tb = list(composite_parameters))
   print(ggplot(data = composite_result, aes(x = coordinates, y = Average_signal, color = Strand, linetype = peak_name)) +
     geom_line() +
-    geom_table(data= table1, aes(x, y, label = tb), size = 3.5))
+    geom_table(data = table1, aes(x, y, label = tb), size = 3.5))
   
-  y_axis_max <- composite_result %>% filter(Strand=="Fw_plus_Rv", peak_name == "composite_peak") %>% select("Average_signal") %>% max()
-  table1 <- tibble(x = 0, y = y_axis_max + (y_axis_max*0.2), tb=list(composite_parameters))
+  y_axis_max <- composite_result %>% filter(Strand == "Fw_plus_Rv", peak_name == "composite_peak") %>% select("Average_signal") %>% max()
+  table1 <- tibble(x = 0, y = y_axis_max + (y_axis_max*0.2), tb = list(composite_parameters))
   print(ggplot(data = filter(composite_result, peak_name == "composite_peak"), 
                aes(x = coordinates, y = Average_signal, color = Strand, linetype = peak_name)) +
           geom_line() +
           geom_table(data= table1, aes(x, y, label = tb), size = 3.5))
   
-  y_axis_max <- composite_result %>% filter(Strand=="Fw_plus_Rv", peak_name != "composite_peak") %>% select("Average_signal") %>% max()
-  table1 <- tibble(x = 0, y = y_axis_max + (y_axis_max*0.2), tb=list(composite_parameters))
+  y_axis_max <- composite_result %>% filter(Strand == "Fw_plus_Rv", peak_name != "composite_peak") %>% select("Average_signal") %>% max()
+  table1 <- tibble(x = 0, y = y_axis_max + (y_axis_max*0.2), tb = list(composite_parameters))
   print(ggplot(data = filter(composite_result, peak_name != "composite_peak"), 
                aes(x = coordinates, y = Average_signal, color = Strand, linetype = peak_name)) +
           geom_line() +
-          geom_table(data= table1, aes(x, y, label = tb), size = 3.5))
+          geom_table(data = table1, aes(x, y, label = tb), size = 3.5))
   
   #geom_table(data= table1, aes(x, y, label = tb), size = 3.5))
   
@@ -250,48 +283,77 @@ simulate_composite_peaks <- function(parameters){
 ############################################################################################################
 ### EXAMPLE OF SINGLE PEAK
 ############################################################################################################
-# result <- simulate_chip(repetitions = 1000, prot_mean = 500, prot_sd = 50, prot_length = 35,
-#                         read_length = 50, dna_bottom_size = 85, length = 2000,
-#                         intensity = 1, PE_full_length_read = TRUE)
+# simulate_chip(repetitions = 10000,
+#               prot_mean = 500,
+#               prot_sd = 20,
+#               prot_length = 20,
+#               read_length = 25,
+#               dna_bottom_size = 75,
+#               length = 1000,
+#               number_cuts_per_kb = 10,
+#               intensity = 1,
+#               PE_full_length_read = FALSE,
+#               cut_r = 1,
+#               cut_l = -0,
+#               no_cut_l = c(0,0))
 ############################################################################################################
 ### EXAMPLE OF COMPOSITE PEAK
 ############################################################################################################
 ####### 2 peaks #############
-# a <- list(prot_mean = c(500,1500), prot_sd = c(20,20), prot_length = c(50,50),
-#           no_cut_l = c(c(0,0),c(0,0)), no_cut_r = c(c(0,0),c(0,0)), cut_l = c(0,-10), cut_r = c(10,0),
-#           repetitions = c(2000,2000), length = c(2000,2000), read_length = c(75,75),
-#           dna_top_size = c(300,300), dna_bottom_size = c(85,85), plot = c(FALSE,FALSE),
-#           number_peaks = 2, names=c("Peak1", "Peak2"), intensity=c(1,2))
-# 
-# 
-# x <- simulate_composite_peaks(a)
-# 
-####### 3 peaks #############
-# a <- list(prot_mean = c(2100,3000,3900), 
-#           prot_sd = c(250,100,250), 
-#           prot_length = c(40,40,40),
-#           no_cut_l = list(c(0,0),c(0,0), c(0,0)), 
-#           no_cut_r = list(c(0,0),c(0,0), c(0,0)), 
-#           cut_l = c(0,0,-1), 
-#           cut_r = c(1,0,0),
-#           repetitions = c(4000,4000,4000), 
-#           length = c(6000,6000,6000), 
-#           read_length = c(150,150,150),
-#           number_cuts_per_kilobase = c(2,2,2),
-#           dna_bottom_size = c(85,85,85), 
-#           plot = c(FALSE,FALSE,FALSE),
-#           number_peaks = c(3,3,3),
-#           names = c("Peak1", "Peak2","Peak3"), 
-#           intensity = c(5,2,5),
-#           PE_full_length_read = c(TRUE,TRUE,TRUE))
+# a <- list(prot_mean = c(990,1010),
+#           prot_sd = c(60,60),
+#           prot_length = c(30,30),
+#           no_cut_l = list(c(0,0),c(0,0)),
+#           no_cut_r = list(c(0,0),c(0,0)),
+#           cut_l = c(0,-30),
+#           cut_r = c(30,0),
+#           repetitions = c(3000,3000),
+#           length = c(2000,2000),
+#           read_length = c(75,75),
+#           number_cuts_per_kb = c(2,2),
+#           dna_bottom_size = c(50,50),
+#           plot = c(FALSE,FALSE),
+#           number_peaks = c(2,2),
+#           names = c("Peak1", "Peak2"),
+#           intensity = c(1,1),
+#           PE_full_length_read = c(FALSE,FALSE))
 # x <- simulate_composite_peaks(a)
 
+####### 3 peaks #############
+a <- list(prot_mean = c(2100,3000,3900),
+          prot_sd = c(200),
+          prot_length = c(30),
+          no_cut_l = list(c(0,0)),
+          no_cut_r = list(c(0,0)),
+          cut_l = c(0,0,-1),
+          cut_r = c(1,0,0),
+          repetitions = c(3000),
+          length = c(6000),
+          read_length = c(75),
+          number_cuts_per_kb = c(3.8,2.3,3.8),
+          dna_bottom_size = c(85),
+          plot = c(FALSE),
+          number_peaks = c(3),
+          names = c("Peak1", "Peak2","Peak3"),
+          intensity = c(7,2,7),
+          PE_full_length_read = c(FALSE)
 # #
-# # ####### 4 peaks #############
-# a <- list(prot_mean = c(1000,1500,1500,2000), prot_sd = c(100,200,200,100), prot_length = c(40,40,40,40),
-#           no_cut_l = c(0,0,0,0), no_cut_r = c(0,0,0,0), cut_l = c(0,0,0,-1), cut_r = c(1,0,0,0),
-#           repetitions = c(2000,2000,2000,2000), length = c(6000,6000,6000,6000), read_length = c(75,75,75,75),
-#           dna_top_size = c(350,300,300,300), dna_bottom_size = c(85,85,85,85), plot = c(FALSE,FALSE,FALSE,FALSE),
-#           number_peaks = 4, names=c("Peak1", "Peak2","a","b"), intensity=c(4,1,1,4))
+# # # ####### 4 peaks #############
+# a <- list(prot_mean = c(2100,3000,3000,3900),
+#           prot_sd = c(220,100,220,100),
+#           prot_length = c(30,30,30),
+#           no_cut_l = list(c(0,0),c(0,0), c(0,0)),
+#           no_cut_r = list(c(0,0),c(0,0), c(0,0)),
+#           cut_l = c(0,0,-1),
+#           cut_r = c(1,0,0),
+#           repetitions = c(2000,2000,2000),
+#           length = c(6000,6000,6000,6000),
+#           read_length = c(75,75,75),
+#           number_cuts_per_kb = c(3.8,2.3,3.8),
+#           dna_bottom_size = c(85,85,85),
+#           plot = c(FALSE,FALSE,FALSE),
+#           number_peaks = c(3,3,3),
+#           names = c("Peak1", "Peak2","Peak3"),
+#           intensity = c(7,2,7),
+#           PE_full_length_read = c(FALSE,FALSE,FALSE))
 # x <- simulate_composite_peaks(a)
-# 
