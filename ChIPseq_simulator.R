@@ -1,9 +1,7 @@
 library(tidyverse)
 library(gridExtra)
 library(ggpmisc)
-# Corrected parameters table to show prot_mean
-# Parameters table now show double parameters as one paramter separated by coma
-# For mult_peak calling now if you want to put the same value for all peaks then you can put it only once
+# Added protein position matrix
 
 simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cut_l = c(0,0), no_cut_r = c(0,0),
                           cut_l = 0, cut_r = 0, repetitions = 1000, length = 1000, read_length = 75,
@@ -29,12 +27,15 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cu
   # Set matrixes to store results
   reads_table_F <- matrix(nrow = repetitions, ncol = length)
   reads_table_R <- matrix(nrow = repetitions, ncol = length)
+  reads_table_protein <- matrix(nrow = repetitions, ncol = length)
   reads_dna_size <- matrix(nrow = repetitions, ncol = 1)
   reads_table_F[] <- 0
   reads_table_R[] <- 0
+  reads_table_protein[] <- 0
   coordinates <- 1:length
   colnames(reads_table_F) <- coordinates
   colnames(reads_table_R) <- coordinates
+  colnames(reads_table_protein) <- coordinates
   
   #########
   while (i < repetitions + 1) {
@@ -119,11 +120,13 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cu
     if (PE_full_length_read) {
       reads_table_F[i,left_cut:right_cut] <- intensity
       reads_table_R[i,left_cut:right_cut] <- intensity
+      reads_table_protein[i,prot_left:prot_right] <- intensity * (right_cut - left_cut) / prot_length
       reads_dna_size[[i]] <- right_cut - left_cut
       i = i + 1
     } else {
     reads_table_F[i,left_cut:(left_cut + read_length)] <- intensity
     reads_table_R[i,(right_cut - read_length):right_cut] <- intensity
+    reads_table_protein[i,prot_left:prot_right] <- intensity*read_length/prot_length
     reads_dna_size[i,1] <- right_cut - left_cut
     i = i + 1
     }
@@ -133,31 +136,38 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cu
   i <- 1
   average_table_F <- matrix(nrow = 2, ncol = length)
   average_table_R <- matrix(nrow = 2, ncol = length)
+  average_table_protein <- matrix(nrow = 2, ncol = length)
   
   rownames(average_table_F) <- c("coordinates","Fw")
   rownames(average_table_R) <- c("coordinates","Rv")
+  rownames(average_table_protein) <- c("coordinates","Protein")
   
   average_table_F[1,] <- coordinates
   average_table_R[1,] <- coordinates
+  average_table_protein[1,] <- coordinates
   
   while (i < (length + 1)) {
     average_table_F[2,i] <- mean(reads_table_F[,i])
     average_table_R[2,i] <- mean(reads_table_R[,i])
+    average_table_protein[2,i] <-  mean(reads_table_protein[,i])
     i = i + 1
   }
   
   # Transform matrixes to tibbles so it can be used in ggplot (I am not sure if this is actually necessary)
   average_table_F <- as_tibble(t(average_table_F))
   average_table_R <- as_tibble(t(average_table_R))
+  average_table_protein <- as_tibble(t(average_table_protein))
   # Calculate DNA-size mean and sd
   dna_statistics <- tibble("mean_DNA_size" = mean(reads_dna_size[,1]), "DNA_size_sd" = sd(reads_dna_size[,1])) %>%
     mutate(mean_DNA_size = sprintf("%0.0f", mean_DNA_size), DNA_size_sd = sprintf("%0.0f", DNA_size_sd))
   
-  # merge both tibbles, calculate sum of Fw and Rv, re-shape tibble so that it is useful for ggplot
-  average_table <- left_join(average_table_F, average_table_R) %>% mutate("Fw_plus_Rv" = Fw + Rv) %>%
+  # merge tibbles, calculate sum of Fw and Rv, re-shape tibble so that it is useful for ggplot
+  average_table <- left_join(average_table_F, average_table_R) %>% 
+    mutate("Fw_plus_Rv" = Fw + Rv) %>%
+    left_join(average_table_protein) %>% 
     pivot_longer(col = -coordinates, names_to = "Strand", values_to = "Average_signal")
   #Change the order of factors so when graphed in ggplot Fw_plus_Rv comes first (and does not cover the other 2)
-  average_table$Strand <- factor(average_table$Strand, levels = c("Fw_plus_Rv","Fw","Rv"))
+  average_table$Strand <- factor(average_table$Strand, levels = c("Fw_plus_Rv","Fw","Rv","Protein"))
   
   #Get parameters in a table
   parameters <- tibble("prot_mean " = prot_mean,
@@ -216,7 +226,7 @@ simulate_composite_peaks <- function(parameters){
   # Make list to store resuts
   results <- list()
   # For parameters that are only input once, repeat them many times as peaks there are
-  for (i in 1:15) { #15 is the number of parameters to input to the simulate_chip function
+  for (i in 1:17) { #17 is the number of parameters to input to the simulate_chip function
     if (length(parameters[[i]]) == 1) {
       while (length(parameters[[i]]) < parameters$number_peaks[[1]]) {
         parameters[[i]] <- c(parameters[[i]],parameters[[i]])
@@ -258,57 +268,63 @@ simulate_composite_peaks <- function(parameters){
     n <- n + 1
   }
   
-  # Get average signal for composite peak
+  # Get average signal for composite peak...it is actually the sum of the averages of the two strands
   composite_peak <- composite_result %>% group_by(coordinates, Strand) %>% 
-                    summarise("Average_signal" = sum(Average_signal), peak_name = "composite_peak") %>% ungroup() #Is ungroup necessary?
+                    summarise("Average_signal" = sum(Average_signal), peak_name = "composite_peak") %>%
+                    ungroup() #Is ungroup necessary?
   composite_result <- bind_rows(composite_result, composite_peak)
   
   # Print plots
-  y_axis_max <- composite_result %>% filter(Strand=="Fw_plus_Rv") %>% select("Average_signal") %>% max()
+  # All together (composite peaks plus individual peaks)
+   y_axis_max <- composite_result %>% 
+                filter(Strand == "Fw_plus_Rv") %>% select("Average_signal") %>% 
+                max()
   table1 <- tibble(x = 0, y = y_axis_max + (y_axis_max*0.2), tb = list(composite_parameters))
-  print(ggplot(data = composite_result, aes(x = coordinates, y = Average_signal, color = Strand, linetype = peak_name)) +
+  print(ggplot(data = composite_result, 
+               aes(x = coordinates, y = Average_signal, color = Strand, linetype = peak_name)) +
     geom_line() +
     geom_table(data = table1, aes(x, y, label = tb), size = 3.5))
-  
-  y_axis_max <- composite_result %>% filter(Strand == "Fw_plus_Rv", peak_name == "composite_peak") %>% select("Average_signal") %>% max()
+  # Individual Peaks only (no composite peak)
+  y_axis_max <- composite_result %>% filter(Strand == "Fw_plus_Rv", peak_name != "composite_peak") %>% 
+                select("Average_signal") %>% max()
+  table1 <- tibble(x = 0, y = y_axis_max + (y_axis_max*0.2), tb = list(composite_parameters))
+  print(ggplot(data = filter(composite_result, peak_name != "composite_peak"), 
+               aes(x = coordinates, y = Average_signal, color = Strand, linetype = peak_name)) +
+          geom_line() +
+          geom_table(data = table1, aes(x, y, label = tb), size = 3.5))
+  # Composite peak only
+  y_axis_max <- composite_result %>% 
+    filter(Strand == "Fw_plus_Rv", peak_name == "composite_peak") %>% 
+    select("Average_signal") %>% 
+    max()
   table1 <- tibble(x = 0, y = y_axis_max + (y_axis_max*0.2), tb = list(composite_parameters))
   print(ggplot(data = filter(composite_result, peak_name == "composite_peak"), 
                aes(x = coordinates, y = Average_signal, color = Strand, linetype = peak_name)) +
           geom_line() +
           geom_table(data= table1, aes(x, y, label = tb), size = 3.5))
   
-  y_axis_max <- composite_result %>% filter(Strand == "Fw_plus_Rv", peak_name != "composite_peak") %>% select("Average_signal") %>% max()
-  table1 <- tibble(x = 0, y = y_axis_max + (y_axis_max*0.2), tb = list(composite_parameters))
-  print(ggplot(data = filter(composite_result, peak_name != "composite_peak"), 
-               aes(x = coordinates, y = Average_signal, color = Strand, linetype = peak_name)) +
-          geom_line() +
-          geom_table(data = table1, aes(x, y, label = tb), size = 3.5))
-  
-  #geom_table(data= table1, aes(x, y, label = tb), size = 3.5))
-  
-  # Return table
   return(composite_result)
 }
 
-############################################################################################################
-### EXAMPLE OF SINGLE PEAK
-############################################################################################################
-# simulate_chip(repetitions = 10000,
-#               prot_mean = 500,
-#               prot_sd = 20,
-#               prot_length = 20,
-#               read_length = 25,
-#               dna_bottom_size = 75,
-#               length = 1000,
-#               number_cuts_per_kb = 10,
-#               intensity = 1,
-#               PE_full_length_read = FALSE,
-#               cut_r = 1,
-#               cut_l = -0,
-#               no_cut_l = c(0,0))
-############################################################################################################
-### EXAMPLE OF COMPOSITE PEAK
-############################################################################################################
+#######################################
+###### EXAMPLE OF SINGLE PEAK ########
+######################################
+simulate_chip(repetitions = 10000,
+              prot_mean = 1500,
+              prot_sd = 200,
+              prot_length = 20,
+              read_length = 20,
+              dna_bottom_size = 75,
+              length = 3000,
+              number_cuts_per_kb = 10,
+              intensity = 7,
+              PE_full_length_read = FALSE,
+              cut_r = 0,
+              cut_l = -1,
+              no_cut_l = c(0,0))
+################################################
+###### EXAMPLE OF COMPOSITE PEAKS ##############
+################################################
 ####### 2 peaks #############
 # a <- list(prot_mean = c(990,1010),
 #           prot_sd = c(60,60),
@@ -330,26 +346,26 @@ simulate_composite_peaks <- function(parameters){
 # x <- simulate_composite_peaks(a)
 
 ####### 3 peaks #############
-a <- list(prot_mean = c(2100,3000,3900),
+a <- list(prot_mean = c(666,1222,1888),
           prot_sd = c(200),
-          prot_length = c(30,30,30),
-          no_cut_l = list(c(0,0),c(0,0), c(0,0)),
-          no_cut_r = list(c(0,0),c(0,0), c(0,0)),
+          prot_length = c(30),
+          no_cut_l = list(c(0,0)),
+          no_cut_r = list(c(0,0)),
           cut_l = c(0,0,-1),
           cut_r = c(1,0,0),
-          repetitions = c(3000,3000,3000),
-          length = c(6000,6000,6000),
-          read_length = c(75,75,75),
+          repetitions = c(1000),
+          length = c(3000),
+          read_length = c(75),
           number_cuts_per_kb = c(3.8,2.3,3.8),
-          dna_bottom_size = c(85,85,85),
-          plot = c(FALSE,FALSE,FALSE),
-          number_peaks = c(3,3,3),
+          dna_bottom_size = c(85),
+          plot = c(FALSE),
+          number_peaks = c(3),
           names = c("Peak1", "Peak2","Peak3"),
           intensity = c(7,2,7),
-          PE_full_length_read = c(FALSE,FALSE,FALSE))
+          PE_full_length_read = c(TRUE))
 
-PE <- simulate_composite_peaks(a)
-PE[["peak_name"]] <- "PE"
+x <- simulate_composite_peaks(a)
+
 # combined <- bind_rows(filter(x, Strand == "Fw_plus_Rv" & peak_name == "composite_peak"), 
 #                       filter(PE, Strand == "Fw_plus_Rv" & peak_name == "composite_peak"))
 # 
@@ -374,4 +390,3 @@ PE[["peak_name"]] <- "PE"
 #           intensity = c(7,2,7),
 #           PE_full_length_read = c(FALSE,FALSE,FALSE))
 # x <- simulate_composite_peaks(a)
-
