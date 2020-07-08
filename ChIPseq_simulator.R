@@ -120,13 +120,13 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cu
     if (PE_full_length_read) {
       reads_table_F[i,left_cut:right_cut] <- intensity
       reads_table_R[i,left_cut:right_cut] <- intensity
-      reads_table_protein[i,prot_left:prot_right] <- intensity * (right_cut - left_cut) / prot_length
+      reads_table_protein[i,prot_left:prot_right] <- intensity
       reads_dna_size[[i]] <- right_cut - left_cut
       i = i + 1
     } else {
     reads_table_F[i,left_cut:(left_cut + read_length)] <- intensity
     reads_table_R[i,(right_cut - read_length):right_cut] <- intensity
-    reads_table_protein[i,prot_left:prot_right] <- intensity*read_length/prot_length
+    reads_table_protein[i,prot_left:prot_right] <- intensity
     reads_dna_size[i,1] <- right_cut - left_cut
     i = i + 1
     }
@@ -153,6 +153,7 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cu
     i = i + 1
   }
   
+  
   # Transform matrixes to tibbles so it can be used in ggplot (I am not sure if this is actually necessary)
   average_table_F <- as_tibble(t(average_table_F))
   average_table_R <- as_tibble(t(average_table_R))
@@ -161,9 +162,17 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cu
   dna_statistics <- tibble("mean_DNA_size" = mean(reads_dna_size[,1]), "DNA_size_sd" = sd(reads_dna_size[,1])) %>%
     mutate(mean_DNA_size = sprintf("%0.0f", mean_DNA_size), DNA_size_sd = sprintf("%0.0f", DNA_size_sd))
   
-  # merge tibbles, calculate sum of Fw and Rv, re-shape tibble so that it is useful for ggplot
+  # merge tibbles, calculate sum of Fw and Rv, 
   average_table <- left_join(average_table_F, average_table_R) %>% 
-    mutate("Fw_plus_Rv" = Fw + Rv) %>%
+    mutate("Fw_plus_Rv" = Fw + Rv)
+  # Re size protein average so that max value is the same as Fw_plus_Rv max value
+  max_fw_rv <- max(average_table$Fw_plus_Rv)
+  max_prot <- max(average_table_protein$Protein)
+  average_table_protein <- average_table_protein %>% 
+                            mutate("Protein" = max_fw_rv * Protein / max_prot)
+  
+  # Merge tables and re-shape so that it can be plotted using gpglot2
+  average_table <- average_table %>% 
     left_join(average_table_protein) %>% 
     pivot_longer(col = -coordinates, names_to = "Strand", values_to = "Average_signal")
   #Change the order of factors so when graphed in ggplot Fw_plus_Rv comes first (and does not cover the other 2)
@@ -309,19 +318,19 @@ simulate_composite_peaks <- function(parameters){
 #######################################
 ###### EXAMPLE OF SINGLE PEAK ########
 ######################################
-simulate_chip(repetitions = 10000,
-              prot_mean = 1500,
-              prot_sd = 200,
-              prot_length = 20,
-              read_length = 20,
-              dna_bottom_size = 75,
-              length = 3000,
-              number_cuts_per_kb = 10,
-              intensity = 7,
-              PE_full_length_read = FALSE,
-              cut_r = 0,
-              cut_l = -1,
-              no_cut_l = c(0,0))
+# simulate_chip(repetitions = 10000,
+#               prot_mean = 1500,
+#               prot_sd = 200,
+#               prot_length = 20,
+#               read_length = 20,
+#               dna_bottom_size = 75,
+#               length = 3000,
+#               number_cuts_per_kb = 10,
+#               intensity = 7,
+#               PE_full_length_read = FALSE,
+#               cut_r = 0,
+#               cut_l = -0,
+#               no_cut_l = c(0,0))
 ################################################
 ###### EXAMPLE OF COMPOSITE PEAKS ##############
 ################################################
@@ -346,25 +355,25 @@ simulate_chip(repetitions = 10000,
 # x <- simulate_composite_peaks(a)
 
 ####### 3 peaks #############
-a <- list(prot_mean = c(666,1222,1888),
-          prot_sd = c(200),
-          prot_length = c(30),
-          no_cut_l = list(c(0,0)),
-          no_cut_r = list(c(0,0)),
-          cut_l = c(0,0,-1),
-          cut_r = c(1,0,0),
-          repetitions = c(1000),
-          length = c(3000),
-          read_length = c(75),
-          number_cuts_per_kb = c(3.8,2.3,3.8),
-          dna_bottom_size = c(85),
-          plot = c(FALSE),
-          number_peaks = c(3),
-          names = c("Peak1", "Peak2","Peak3"),
-          intensity = c(7,2,7),
-          PE_full_length_read = c(TRUE))
-
-x <- simulate_composite_peaks(a)
+# a <- list(prot_mean = c(2100,3000,3900),
+#           prot_sd = c(250,100,250), 	          
+#           prot_length = c(20,20,20),           
+#           no_cut_l = list(c(0,0)),
+#           no_cut_r = list(c(0,0)), 
+#           cut_l = c(0,0,-1), 	          
+#           cut_r = c(1,0,0),
+#           repetitions = c(3000),
+#           length = c(6000),
+#           read_length = c(75),
+#           number_cuts_per_kb = c(3.8,2.3,3.8),
+#           dna_bottom_size = c(85),
+#           plot = c(FALSE),
+#           number_peaks = c(3),
+#           names = c("Peak1", "Peak2","Peak3"),
+#           intensity = c(7,2,7),
+#           PE_full_length_read = c(FALSE))
+# 
+# x <- simulate_composite_peaks(a)
 
 # combined <- bind_rows(filter(x, Strand == "Fw_plus_Rv" & peak_name == "composite_peak"), 
 #                       filter(PE, Strand == "Fw_plus_Rv" & peak_name == "composite_peak"))
