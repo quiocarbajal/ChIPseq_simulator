@@ -8,9 +8,9 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cu
                           number_cuts_per_kb = 4, dna_bottom_size = 85, plot = TRUE, intensity = 1, PE_full_length_read = FALSE) { 
   # prot_mean       : the coordinate in which the protein center can be found (mean of normal distribution)
   # prot_length     : length of DNA covered by the protein, this is a "no-cut" zone.
-  # no_cut_l        : coordinates, relative to the left side of the protein, in which no cuts are generated  (input as "c(-10,0)", beeing 0 the left side of the protein)
-  # no_cut_r        : the same as above but coodinates are positive, with 0 being the rigt side of the protein
-  # cut_l / cut_r   : coordinates (relative to the left-most or right-most side of the protein) of a fixed cut to the left or the right of the protein respectively
+  # no_cut_l        : coordinates, relative to the left side of the protein, in which no cuts are generated  (input as "c(-10,0)", being 0 the left side of the protein)
+  # no_cut_r        : the same as above but coordinates are positive, with 0 being the right side of the protein
+  # cut_l / cut_r   : coordinates (relative to the left-most or right-most side of the protein) of a fixed cut to the left or the right of the protein respectively. 0 = No cut
   # repetitions     : number of reads that are going to be included in the final table (discarded reads are...discarded, hence, they are not included in the final table)
   # length          : length of the coordinate system
   # read_length     : length of sequencing, determined by the sequencer (75, 150, etc)
@@ -165,7 +165,7 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cu
   # merge tibbles, calculate sum of Fw and Rv, 
   average_table <- left_join(average_table_F, average_table_R) %>% 
     mutate("Fw_plus_Rv" = Fw + Rv)
-  # Re size protein average so that max value is the same as Fw_plus_Rv max value
+  # Re size protein average so that max value is the same as Fw_plus_Rv average
   max_fw_rv <- max(average_table$Fw_plus_Rv)
   max_prot <- max(average_table_protein$Protein)
   average_table_protein <- average_table_protein %>% 
@@ -196,10 +196,7 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cu
   
   #Create a graph
   if (plot) {
-    
-    
     y_axis_max <- average_table %>% filter(Strand == "Fw_plus_Rv") %>% select("Average_signal") %>% max()
-    
     
     table1 <- tibble(x = 0, y = y_axis_max + (y_axis_max * 0.2), tb = list(parameters))
     # Agregate profile
@@ -230,11 +227,17 @@ simulate_composite_peaks <- function(parameters){
     # repetitions = c(2000,2000), length = c(2000,2000), read_length = c(75,75), 
     # dna_top_size = c(250,250), dna_bottom_size = c(85,85), plot = c(FALSE,FALSE),
     # number_peaks = 2, names=c("Peak1", "Peak2"))
-  
+
   # Call "simulate_chip" function for every peak in the parameters list
   # Make list to store resuts
   results <- list()
-  # For parameters that are only input once, repeat them many times as peaks there are
+  # For parameters that are only input once, repeat them as many times as peaks there are
+  if (length(parameters$names) < parameters$number_peaks[[1]]) {
+  for (i in length(parameters$names):(parameters$number_peaks[[1]] + length(parameters$names))) {
+    parameters$names[[i]] <- str_c("peak_",i)  
+    }
+  }
+  
   for (i in 1:17) { #17 is the number of parameters to input to the simulate_chip function
     if (length(parameters[[i]]) == 1) {
       while (length(parameters[[i]]) < parameters$number_peaks[[1]]) {
