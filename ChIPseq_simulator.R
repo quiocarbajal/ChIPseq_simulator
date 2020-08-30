@@ -285,7 +285,7 @@ simulate_composite_peaks <- function(parameters){
                     summarise("Average_signal" = sum(Average_signal), peak_name = "composite_peak") %>%
                     ungroup() #Is ungroup necessary?
   composite_result <- bind_rows(composite_result, composite_peak)
-  
+  composite_result$peak_name <- as.factor(composite_result$peak_name)
   # Print plots
   # All together (composite peaks plus individual peaks)
    y_axis_max <- composite_result %>% 
