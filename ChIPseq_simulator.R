@@ -302,31 +302,34 @@ simulate_composite_peaks <- function(parameters){
    y_axis_max <- composite_result %>% 
                 filter(Strand == "Full_length") %>% select("Average_signal") %>% 
                 max()
-  table1 <- tibble(x = 0, y = y_axis_max + (y_axis_max*0.2), tb = list(composite_parameters))
+  table1 <- tibble(x = 0, y = y_axis_max * (1 + .7 * parameters$number_peaks[[1]]), tb = list(composite_parameters))
   print(ggplot(data = composite_result, 
-               aes(x = Coordinates, y = Average_signal, color = Strand, linetype = peak_name)) +
+               aes(x = Coordinates, y = Average_signal, color = Strand, linetype = peak_name, alpha = Strand)) +
     geom_line() +
-    geom_table(data = table1, aes(x, y, label = tb), size = 3.5) +
+      scale_alpha_manual(values = c(1,1,1,0.3)) +
+    geom_table(data = table1, aes(x, y, label = tb), size = 3) +
     geom_vline(xintercept = parameters$prot_mean, alpha = 0.25, linetype = "dashed"))
   # Individual Peaks only (no composite peak)
-  y_axis_max <- composite_result %>% filter(Strand == "Full_length", peak_name != "composite_peak") %>% 
+  y_axis_max <- composite_result %>% filter(peak_name != "composite_peak") %>% 
                 select("Average_signal") %>% max()
-  table1 <- tibble(x = 0, y = y_axis_max + (y_axis_max*0.25), tb = list(composite_parameters))
+  table1 <- tibble(x = 0, y = y_axis_max * (1 + .7 * parameters$number_peaks[[1]]), tb = list(composite_parameters))
   print(ggplot(data = filter(composite_result, peak_name != "composite_peak"), 
-               aes(x = Coordinates, y = Average_signal, color = Strand, linetype = peak_name)) +
+               aes(x = Coordinates, y = Average_signal, color = Strand, linetype = peak_name,alpha = Strand)) +
           geom_line() +
-          geom_table(data = table1, aes(x, y, label = tb), size = 3.5) +
+          scale_alpha_manual(values = c(1,1,1,0.3)) +
+          geom_table(data = table1, aes(x, y, label = tb), size = 3) +
     geom_vline(xintercept = parameters$prot_mean, alpha = 0.25, linetype = "dashed"))
   # Composite peak only
   y_axis_max <- composite_result %>% 
     filter(Strand == "Full_length", peak_name == "composite_peak") %>% 
     select("Average_signal") %>% 
     max()
-  table1 <- tibble(x = 0, y = y_axis_max + (y_axis_max*0.2), tb = list(composite_parameters))
+  table1 <- tibble(x = 0, y = y_axis_max * (1 + .7 * parameters$number_peaks[[1]]), tb = list(composite_parameters))
   print(ggplot(data = filter(composite_result, peak_name == "composite_peak"), 
-               aes(x = Coordinates, y = Average_signal, color = Strand, linetype = peak_name)) +
+               aes(x = Coordinates, y = Average_signal, color = Strand, linetype = peak_name, alpha = Strand)) +
           geom_line() +
-          geom_table(data = table1, aes(x, y, label = tb), size = 3.5) +
+          scale_alpha_manual(values = c(1,1,1,0.3)) +
+          geom_table(data = table1, aes(x, y, label = tb), size = 3) +
     geom_vline(xintercept = parameters$prot_mean, alpha = 0.25, linetype = "dashed"))
   
   return(composite_result)
@@ -397,21 +400,21 @@ simulate_composite_peaks <- function(parameters){
 
 # #
 # # # ####### 4 peaks #############
-# a <- list(prot_mean = c(2100,3000,3000,3900),
-#           prot_sd = c(220,100,220,100),
-#           prot_length = c(30,30,30),
-#           no_cut_l = list(c(0,0),c(0,0), c(0,0)),
-#           no_cut_r = list(c(0,0),c(0,0), c(0,0)),
-#           cut_l = c(0,0,-1),
-#           cut_r = c(1,0,0),
-#           repetitions = c(2000,2000,2000),
-#           length = c(6000,6000,6000,6000),
-#           read_length = c(75,75,75),
-#           number_cuts_per_kb = c(3.8,2.3,3.8),
-#           dna_bottom_size = c(85,85,85),
-#           plot = c(FALSE,FALSE,FALSE),
-#           number_peaks = c(3,3,3),
-#           names = c("Peak1", "Peak2","Peak3"),
-#           intensity = c(7,2,7),
-#           PE_full_length_read = c(FALSE,FALSE,FALSE))
-# x <- simulate_composite_peaks(a)
+a <- list(prot_mean = c(2654,2854,3146,3346),
+          prot_sd = c(100),
+          prot_length = c(30),
+          no_cut_l = list(c(0,0)),
+          no_cut_r = list(c(0,0)),
+          cut_l = c(0),
+          cut_r = c(0),
+          repetitions = c(5000),
+          length = c(6000),
+          read_length = c(50),
+          number_cuts_per_kb = c(3.8),
+          dna_bottom_size = c(85),
+          plot = c(FALSE),
+          number_peaks = c(4),
+          names = c("Peak1"),
+          intensity = c(4,7,7,4),
+          PE_full_length_read = c(FALSE,FALSE,FALSE))
+x <- simulate_composite_peaks(a)
