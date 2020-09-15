@@ -329,7 +329,11 @@ simulate_composite_peaks <- function(parameters){
                aes(x = Coordinates, y = Average_signal, color = Strand, linetype = peak_name, alpha = Strand)) +
           geom_line() +
           scale_alpha_manual(values = c(1,1,1,0.3)) +
+<<<<<<< HEAD
           geom_table(data = table1, aes(x, y, label = tb), size = 3) +
+=======
+          geom_table(data = table1, aes(x, y, label = tb), size = 3.5) +
+>>>>>>> fc3fc69b7befbc21718efe2d8f97d048a8e6b18b
     geom_vline(xintercept = parameters$prot_mean, alpha = 0.25, linetype = "dashed"))
   
   return(composite_result)
@@ -407,7 +411,11 @@ a <- list(prot_mean = c(2654,2854,3146,3346),
           no_cut_r = list(c(0,0)),
           cut_l = c(0),
           cut_r = c(0),
+<<<<<<< HEAD
           repetitions = c(5000),
+=======
+          repetitions = c(1000),
+>>>>>>> fc3fc69b7befbc21718efe2d8f97d048a8e6b18b
           length = c(6000),
           read_length = c(50),
           number_cuts_per_kb = c(3.8),
@@ -415,6 +423,10 @@ a <- list(prot_mean = c(2654,2854,3146,3346),
           plot = c(FALSE),
           number_peaks = c(4),
           names = c("Peak1"),
+<<<<<<< HEAD
           intensity = c(4,7,7,4),
+=======
+          intensity = c(2,7,7,2),
+>>>>>>> fc3fc69b7befbc21718efe2d8f97d048a8e6b18b
           PE_full_length_read = c(FALSE,FALSE,FALSE))
 x <- simulate_composite_peaks(a)
