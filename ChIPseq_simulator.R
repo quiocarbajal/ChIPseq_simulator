@@ -301,7 +301,7 @@ simulate_composite_peaks <- function(parameters){
   y_axis_max <- composite_result %>% 
     filter(Strand == "Full_length") %>% select("Average_signal") %>% 
     max()
-  table1 <- tibble(x = 0, y = y_axis_max * (1 + .7 * parameters$number_peaks[[1]]), tb = list(composite_parameters))
+  table1 <- tibble(x = 0, y = y_axis_max * (1 + .07 * parameters$number_peaks[[1]]), tb = list(composite_parameters))
   print(ggplot(data = composite_result, 
                aes(x = Coordinates, y = Average_signal, color = Strand, linetype = peak_name, alpha = Strand)) +
           geom_line() +
@@ -311,7 +311,7 @@ simulate_composite_peaks <- function(parameters){
   # Individual Peaks only (no composite peak)
   y_axis_max <- composite_result %>% filter(peak_name != "composite_peak") %>% 
     select("Average_signal") %>% max()
-  table1 <- tibble(x = 0, y = y_axis_max * (1 + .7 * parameters$number_peaks[[1]]), tb = list(composite_parameters))
+  table1 <- tibble(x = 0, y = y_axis_max * (1 + .07 * parameters$number_peaks[[1]]), tb = list(composite_parameters))
   print(ggplot(data = filter(composite_result, peak_name != "composite_peak"), 
                aes(x = Coordinates, y = Average_signal, color = Strand, linetype = peak_name,alpha = Strand)) +
           geom_line() +
@@ -323,7 +323,7 @@ simulate_composite_peaks <- function(parameters){
     filter(Strand == "Full_length", peak_name == "composite_peak") %>% 
     select("Average_signal") %>% 
     max()
-  table1 <- tibble(x = 0, y = y_axis_max * (1 + .7 * parameters$number_peaks[[1]]), tb = list(composite_parameters))
+  table1 <- tibble(x = 0, y = y_axis_max * (1 + .07 * parameters$number_peaks[[1]]), tb = list(composite_parameters))
   print(ggplot(data = filter(composite_result, peak_name == "composite_peak"), 
                aes(x = Coordinates, y = Average_signal, color = Strand, linetype = peak_name, alpha = Strand)) +
           geom_line() +
