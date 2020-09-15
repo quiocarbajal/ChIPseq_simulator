@@ -5,7 +5,7 @@ library(ggpmisc)
 
 simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cut_l = c(0,0), no_cut_r = c(0,0),
                           cut_l = 0, cut_r = 0, repetitions = 1000, length = 1000, read_length = 75,
-                          number_cuts_per_kb = 4, dna_bottom_size = 85, plot = TRUE, intensity = 1, PE_full_length_read = FALSE) { 
+                          number_cuts_per_kb = 4, dna_bottom_size = 85, plot = TRUE, intensity = 1) { 
   # prot_mean       : the Coordinate in which the protein center can be found (mean of normal distribution)
   # prot_length     : length of DNA covered by the protein, this is a "no-cut" zone.
   # no_cut_l        : Coordinates, relative to the left side of the protein, in which no cuts are generated  (input as "c(-10,0)", being 0 the left side of the protein)
@@ -189,8 +189,7 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cu
                        "reps" = repetitions, 
                        "read_length" = read_length, 
                        "DNA_btm_size" = dna_bottom_size, 
-                       "number_cuts_per_kb" = number_cuts_per_kb, 
-                       "PE_FL_read" = PE_full_length_read,
+                       "number_cuts_per_kb" = number_cuts_per_kb,
                        "DNA_mean_size" = dna_statistics$mean_DNA_size,
                        "DNA_size_sd" = dna_statistics$DNA_size_sd)
   
@@ -329,11 +328,7 @@ simulate_composite_peaks <- function(parameters){
                aes(x = Coordinates, y = Average_signal, color = Strand, linetype = peak_name, alpha = Strand)) +
           geom_line() +
           scale_alpha_manual(values = c(1,1,1,0.3)) +
-<<<<<<< HEAD
           geom_table(data = table1, aes(x, y, label = tb), size = 3) +
-=======
-          geom_table(data = table1, aes(x, y, label = tb), size = 3.5) +
->>>>>>> fc3fc69b7befbc21718efe2d8f97d048a8e6b18b
     geom_vline(xintercept = parameters$prot_mean, alpha = 0.25, linetype = "dashed"))
   
   return(composite_result)
@@ -357,52 +352,7 @@ simulate_composite_peaks <- function(parameters){
 ################################################
 ###### EXAMPLE OF COMPOSITE PEAKS ##############
 ################################################
-####### 2 peaks #############
-# a <- list(prot_mean = c(990,1010),
-#           prot_sd = c(60,60),
-#           prot_length = c(30,30),
-#           no_cut_l = list(c(0,0),c(0,0)),
-#           no_cut_r = list(c(0,0),c(0,0)),
-#           cut_l = c(0,-30),
-#           cut_r = c(30,0),
-#           repetitions = c(3000,3000),
-#           length = c(2000,2000),
-#           read_length = c(75,75),
-#           number_cuts_per_kb = c(2,2),
-#           dna_bottom_size = c(50,50),
-#           plot = c(FALSE,FALSE),
-#           number_peaks = c(2,2),
-#           names = c("Peak1", "Peak2"),
-#           intensity = c(1,1),
-#           PE_full_length_read = c(FALSE,FALSE))
-# x <- simulate_composite_peaks(a)
 
-####### 3 peaks #############
-# a <- list(prot_mean = c(2100,3000,3900),
-#           prot_sd = c(250,100,250), 	          
-#           prot_length = c(20,20,20),           
-#           no_cut_l = list(c(0,0)),
-#           no_cut_r = list(c(0,0)), 
-#           cut_l = c(0,0,-1), 	          
-#           cut_r = c(1,0,0),
-#           repetitions = c(3000),
-#           length = c(6000),
-#           read_length = c(75),
-#           number_cuts_per_kb = c(3.8,2.3,3.8),
-#           dna_bottom_size = c(85),
-#           plot = c(FALSE),
-#           number_peaks = c(3),
-#           names = c("Peak1", "Peak2","Peak3"),
-#           intensity = c(7,2,7),
-#           PE_full_length_read = c(FALSE))
-# 
-# x <- simulate_composite_peaks(a)
-
-# combined <- bind_rows(filter(x, Strand == "Fw_plus_Rv" & peak_name == "composite_peak"), 
-#                       filter(PE, Strand == "Fw_plus_Rv" & peak_name == "composite_peak"))
-# 
-
-# #
 # # # ####### 4 peaks #############
 a <- list(prot_mean = c(2654,2854,3146,3346),
           prot_sd = c(100),
@@ -411,22 +361,13 @@ a <- list(prot_mean = c(2654,2854,3146,3346),
           no_cut_r = list(c(0,0)),
           cut_l = c(0),
           cut_r = c(0),
-<<<<<<< HEAD
           repetitions = c(5000),
-=======
-          repetitions = c(1000),
->>>>>>> fc3fc69b7befbc21718efe2d8f97d048a8e6b18b
           length = c(6000),
           read_length = c(50),
           number_cuts_per_kb = c(3.8),
           dna_bottom_size = c(85),
           plot = c(FALSE),
           number_peaks = c(4),
-          names = c("Peak1"),
-<<<<<<< HEAD
           intensity = c(4,7,7,4),
-=======
-          intensity = c(2,7,7,2),
->>>>>>> fc3fc69b7befbc21718efe2d8f97d048a8e6b18b
           PE_full_length_read = c(FALSE,FALSE,FALSE))
 x <- simulate_composite_peaks(a)
