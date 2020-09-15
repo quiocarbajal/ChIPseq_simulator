@@ -63,24 +63,81 @@ simulate_chip(repetitions = 1000,
 # combined <- bind_rows(filter(x, Strand == "Fw_plus_Rv" & peak_name == "composite_peak"), 
 #                       filter(PE, Strand == "Fw_plus_Rv" & peak_name == "composite_peak"))
 # 
-
-# #
-# # # ####### 4 peaks #############
-a <- list(prot_mean = c(2654,2854,3146,3346),
-          prot_sd = c(100),
-          prot_length = c(30),
+# # # ####### 2 peaks #############
+a <- list(prot_mean = c(1000),
+          prot_sd = c(50),
+          prot_length = c(10),
           no_cut_l = list(c(0,0)),
           no_cut_r = list(c(0,0)),
           cut_l = c(0),
           cut_r = c(0),
-          repetitions = c(500),
-          length = c(6000),
+          repetitions = c(10000),
+          length = c(2000),
           read_length = c(50),
           number_cuts_per_kb = c(6),
           dna_bottom_size = c(85),
           plot = c(FALSE),
-          number_peaks = c(4),
+          number_peaks = c(2),
           names = c("Peak1"),
-          intensity = c(4,7,7,4),
-          PE_full_length_read = c(FALSE,FALSE,FALSE))
+          intensity = c(1))
 x <- simulate_composite_peaks(a)
+
+ggplot(data = filter(x, peak_name == "composite_peak", Strand != "Protein", Strand != "Full_length")) + 
+  geom_line(mapping = aes(x = Coordinates, y = Average_signal, 
+                          color = Strand)) +
+  scale_color_manual(values = c("green", "blue"))
+
+
+# #
+# # # ####### pT28 #############
+pT28 <- list(prot_mean = c(2100,2654,2854,3146,3346,3900),
+          prot_sd = c(220,100,100,100,100,220),
+          prot_length = c(20),
+          no_cut_l = list(c(0,0)),
+          no_cut_r = list(c(0,0)),
+          cut_l = c(-0,0,0,0,0,-1),
+          cut_r = c(1,0,0,0,0,0),
+          repetitions = c(3000),
+          length = c(6000),
+          read_length = c(50),
+          number_cuts_per_kb = c(2.4,4.5,4.5,4.5,4.5,2.4),
+          dna_bottom_size = c(85),
+          plot = c(FALSE),
+          number_peaks = c(6),
+          names = c("Peak1"),
+          intensity = c(7,0.5,1,1,0.5,7),
+          PE_full_length_read = c(FALSE,FALSE,FALSE))
+pT28 <- simulate_composite_peaks(pT28)
+pT28_b <- filter(pT28, Strand != "Protein", Strand != "Full_length") %>% 
+  mutate("Average_signal" = Average_signal / 1.65) %>% 
+  bind_rows(filter(pT28, Strand != "Protein", Strand == "Full_length"))
+
+ggplot(data = filter(pT28_b, peak_name == "composite_peak", Strand != "Protein")) + 
+  geom_line(mapping = aes(x = Coordinates, y = Average_signal, 
+                          color = Strand)) 
+  scale_color_manual(values = c("green", "blue"))
+  
+# # # ####### T33 #############
+T33 <- list(prot_mean = c(2654,2854,3146,3346),
+             prot_sd = c(100,100,100,100),
+             prot_length = c(20),
+             no_cut_l = list(c(0,0)),
+             no_cut_r = list(c(0,0)),
+             cut_l = c(0,0,0,0),
+             cut_r = c(0,0,0,0),
+             repetitions = c(4000),
+             length = c(6000),
+             read_length = c(50),
+             number_cuts_per_kb = c(4.5,4.5,4.5,4.5),
+             dna_bottom_size = c(85),
+             plot = c(FALSE),
+             number_peaks = c(4),
+             names = c("Peak1"),
+             intensity = c(0.5,1,1,0.5),
+             PE_full_length_read = c(FALSE,FALSE,FALSE))
+
+  T33 <- simulate_composite_peaks(T33)
+
+ggplot(data = filter(T33, peak_name == "composite_peak", Strand != "Protein")) + 
+  geom_line(mapping = aes(x = Coordinates, y = Average_signal, 
+                          color = Strand)) 
