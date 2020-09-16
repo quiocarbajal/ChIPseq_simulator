@@ -284,13 +284,21 @@ simulate_composite_peaks <- function(parameters){
     ungroup() #Is ungroup necessary?
   composite_result <- bind_rows(composite_result, composite_peak)
   composite_result$peak_name <- as.factor(composite_result$peak_name)
-  max <- composite_result %>% group_by(Strand) %>% summarise("Max" = max(Average_signal))
+  max_Fw_Rv <- composite_result %>% filter(Strand == "Fw" | Strand == "Rv") %>% select(Average_signal) %>% max()
+  max_Prot <- composite_result %>% filter(Strand == "Protein") %>% select(Average_signal) %>% max()
+  max_FL <- composite_result %>% filter(Strand == "Full_length") %>% select(Average_signal) %>% max()
   norm <- list()
-  for (strd in seq_along(max$Strand)) {
-    norm[[as.character(max$Strand[strd])]] <- composite_result %>% 
-      filter(Strand == max$Strand[strd]) %>% 
-      mutate(Average_signal = Average_signal / max$Max[strd])
+  for (strd in c("Fw", "Rv")) {
+    norm[[as.character(strd)]] <- composite_result %>% 
+      filter(Strand == strd) %>% 
+      mutate("Average_signal" = Average_signal / max_Fw_Rv)
   }
+  norm[["Protein"]] <- composite_result %>% 
+      filter(Strand == "Protein") %>% 
+      mutate("Average_signal" = 2 * Average_signal / max_Prot)
+  norm[["Full_length"]] <- composite_result %>% 
+    filter(Strand == "Full_length") %>% 
+    mutate("Average_signal" = 2 * Average_signal / max_FL)
   composite_result <- tibble()
   for (i in seq_along(norm)) {
     composite_result <- bind_rows(composite_result, norm[[i]])
