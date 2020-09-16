@@ -230,27 +230,29 @@ simulate_composite_peaks <- function(parameters){
   # Call "simulate_chip" function for every peak in the parameters list
   # Make list to store resuts
   results <- list()
+  number_peaks <- length(parameters$prot_mean)
   # For parameters that are only input once, repeat them as many times as peaks there are
-  if (length(parameters$names) < parameters$number_peaks[[1]]) {
-    for (i in length(parameters$names):(parameters$number_peaks[[1]] + length(parameters$names))) {
+  # For peaks names
+  if (length(parameters$names) < number_peaks) {
+    for (i in length(parameters$names):(number_peaks + length(parameters$names))) {
       parameters$names[[i]] <- str_c("peak_",i)  
     }
   }
-  
-  for (i in 1:16) { #16 is the number of parameters to input to the simulate_chip function
+  #For the rest of parameters
+  for (i in 1:15) { #16 is the number of parameters to input to the simulate_chip function
     if (length(parameters[[i]]) == 1) {
-      while (length(parameters[[i]]) < parameters$number_peaks[[1]]) {
+      while (length(parameters[[i]]) < number_peaks) {
         parameters[[i]] <- c(parameters[[i]],parameters[[i]])
       }
       a <- parameters[[i]]
-      parameters[[i]] <- a[1:parameters$number_peaks[[1]]]
+      parameters[[i]] <- a[1:number_peaks]
       # parameters[[i]] <- c(parameters[[i]],parameters[[i]],parameters[[i]])
     }
     
   }
   
   # Call simulate_peak() for all the peaks
-  for (w in (1:parameters$number_peaks[[1]])) {
+  for (w in (1:number_peaks)) {
     results[[ parameters$names[[w]] ]] <- simulate_chip(prot_mean = parameters$prot_mean[[w]],
                                                         prot_sd = parameters$prot_sd[[w]],
                                                         prot_length = parameters$prot_length[[w]],
@@ -272,7 +274,7 @@ simulate_composite_peaks <- function(parameters){
   composite_result <- tibble()
   composite_parameters <- tibble()
   
-  for (n in (1:parameters$number_peaks[[1]]) ) {
+  for (n in (1:number_peaks) ) {
     composite_result <- bind_rows(composite_result, results[[c(n,1)]])
     composite_parameters <- bind_rows(composite_parameters, results[[c(n,2)]])
     n <- n + 1
@@ -309,7 +311,7 @@ simulate_composite_peaks <- function(parameters){
   y_axis_max <- composite_result %>% 
     filter(Strand == "Full_length") %>% select("Average_signal") %>% 
     max()
-  table1 <- tibble(x = 0, y = y_axis_max * (1 + .07 * parameters$number_peaks[[1]]), tb = list(composite_parameters))
+  table1 <- tibble(x = 0, y = y_axis_max * (1 + .07 * number_peaks), tb = list(composite_parameters))
   print(ggplot(data = composite_result, 
                aes(x = Coordinates, y = Average_signal, color = Strand, linetype = peak_name, alpha = Strand)) +
           geom_line() +
@@ -319,7 +321,7 @@ simulate_composite_peaks <- function(parameters){
   # Individual Peaks only (no composite peak)
   y_axis_max <- composite_result %>% filter(peak_name != "composite_peak") %>% 
     select("Average_signal") %>% max()
-  table1 <- tibble(x = 0, y = y_axis_max * (1 + .07 * parameters$number_peaks[[1]]), tb = list(composite_parameters))
+  table1 <- tibble(x = 0, y = y_axis_max * (1 + .07 * number_peaks), tb = list(composite_parameters))
   print(ggplot(data = filter(composite_result, peak_name != "composite_peak"), 
                aes(x = Coordinates, y = Average_signal, color = Strand, linetype = peak_name,alpha = Strand)) +
           geom_line() +
@@ -331,7 +333,7 @@ simulate_composite_peaks <- function(parameters){
     filter(Strand == "Full_length", peak_name == "composite_peak") %>% 
     select("Average_signal") %>% 
     max()
-  table1 <- tibble(x = 0, y = y_axis_max * (1 + .07 * parameters$number_peaks[[1]]), tb = list(composite_parameters))
+  table1 <- tibble(x = 0, y = y_axis_max * (1 + .07 * number_peaks), tb = list(composite_parameters))
   print(ggplot(data = filter(composite_result, peak_name == "composite_peak"), 
                aes(x = Coordinates, y = Average_signal, color = Strand, linetype = peak_name, alpha = Strand)) +
           geom_line() +
