@@ -3,13 +3,17 @@ library(gridExtra)
 library(ggpmisc)
 # Added protein position matrix
 
-simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cut_l = c(0,0), no_cut_r = c(0,0),
-                          cut_l = 0, cut_r = 0, repetitions = 1000, length = 1000, read_length = 75,
-                          number_cuts_per_kb = 4, dna_bottom_size = 85, plot = TRUE, intensity = 1) { 
+simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, 
+                          no_cut = c(0,0), cut_l = 0, cut_r = 0, repetitions = 1000,
+                          length = 1000, read_length = 75, number_cuts_per_kb = 4, 
+                          dna_bottom_size = 85, plot = TRUE, intensity = 1, 
+                          fixed_pos_cut = 0) { 
+
+# parameters exlplained ---------------------------------------------------
   # prot_mean       : the Coordinate in which the protein center can be found (mean of normal distribution)
   # prot_length     : length of DNA covered by the protein, this is a "no-cut" zone.
-  # no_cut_l        : Coordinates, relative to the left side of the protein, in which no cuts are generated  (input as "c(-10,0)", being 0 the left side of the protein)
-  # no_cut_r        : the same as above but Coordinates are positive, with 0 being the right side of the protein
+  # no_cut        : Coordinates, relative to the ends of the protein, in which no cuts are generated.  
+  #                 eg for composite peak: "list(list(c(100,200),c(250,400)))". The first list is for each of the                       peaks and the second for each of the no_cut zones
   # cut_l / cut_r   : Coordinates (relative to the left-most or right-most side of the protein) of a fixed cut to the left or the right of the protein respectively. 0 = No cut
   # repetitions     : number of reads that are going to be included in the final table (discarded reads are...discarded, hence, they are not included in the final table)
   # length          : length of the Coordinate system
@@ -19,11 +23,35 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cu
   # dna_bottom_size : minimal DNA length. Any random piece of DNA below this threshold will be discarded. If you are purifying your adapter-ligated chipped DNA with ampure beads using 1X buffer, the max size you keep is about 200-150 bp, minus the adapter (75 bp), you get DNA pieces of at least 75-125 bp long 
   # plot            : Do you want to get the plots automatically? You might want to change it to "FALSE" for composite peaks
   # intensity       : Intensity of the peaks, for doing composite peaks
+
+# functions ---------------------------------------------------------------
+  delete_no_cuts <- function(i, cuts){
+    if (i[1] > i[2]) {
+      stop(str_c(i,' -->no_cut should have the following format: \'c(x,y)\', being x smaller than y,
+                 and both are the Coordinate of the no cut zone relative to the protein position'))
+    }
+    if (i[1] >= 0 ) { # Then both not-cut values are to the right
+      no_cut_left <- prot_right + i[1]
+      no_cut_right <- prot_right + i[2]
+    }
+    if (i[2] <= 0 ) { # Then both not-cut values are to the left
+      no_cut_left <- prot_left + i[1]
+      no_cut_right <- prot_left + i[2]
+    } else { # Then 1st is on the left and second is on the right
+      no_cut_left <- prot_left + i[1]
+      no_cut_right <- prot_right + i[2]
+    }
+    
+    CUTS <-  cuts[cuts[] < no_cut_left | cuts[] > no_cut_right]
+    return(CUTS)
+    }
+
+# Simulation --------------------------------------------------------------
   
   # Set index to count succesful iterations
   i <- 1
   
-  # Set matrixes to store results
+  # Set matrixes to store results -----
   reads_table_F <- matrix(nrow = repetitions, ncol = length)
   reads_table_R <- matrix(nrow = repetitions, ncol = length)
   reads_table_full_length <- matrix(nrow = repetitions, ncol = length)
@@ -39,9 +67,8 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cu
   colnames(reads_table_full_length) <- Coordinates
   colnames(reads_table_protein) <- Coordinates
   
-  #########
   while (i < repetitions + 1) {
-    # Prot. Coordinates
+    # Prot. Coordinates ----
     ## Check prot mean is within boundaries
     if (prot_mean < 0 | prot_mean > length) {
       stop('Prot_mean out of boundaries')
@@ -53,12 +80,19 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cu
     if (prot_left < 1 | prot_right > length) {
       next
     }
-    #########
-    # determine left and right cuts
-    ##cuttable_dna_size <- length - no_cut_l[1] + no_cut_l[2] - no_cut_r[2] + no_cut_r[1]
-    number_of_cuts <- as.integer(length * number_cuts_per_kb/1000)
-    cuts <- as.integer(runif(number_of_cuts, min = 1, max = length))
     
+    # determine left and right cuts ----
+
+        number_of_cuts <- as.integer(length * number_cuts_per_kb/1000)
+    if (fixed_pos_cut > 0) {
+    cuts <- as.integer(c(runif(number_of_cuts, min = 1, max = length), as.integer(fixed_pos_cut)))  
+    } else {
+      cuts <- as.integer(runif(number_of_cuts, min = 1, max = length))
+    }
+    
+    if (fixed_pos_cut > length) {
+      stop('fixed_pos_cut is outside of boundaries (too high)')
+    }
     ## Check if cut_l should be used or not ----
     if (cut_l > 0) {
       stop('cut_l should be a negative integer, representing the position of the cut relative to the leftmost protein boundary')
@@ -75,27 +109,14 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cu
       cuts <- c(cuts,cut_r + prot_right)
     }
     
-    # Eliminate cutswithin no cut zones ------
-    cuts <-  cuts[cuts[] > prot_right | cuts[] < prot_left]
-    if (no_cut_l[1] > no_cut_l[2]) {
-      stop('no_cut_l should have the following format: \'c(-x,y)\', being x smaller than y,
-           and both are the Coordinate of the no cut zone relative to the protein position')
+    # Delete cuts in no-cut zone ----
+    if (length(no_cut) > 1) {
+      for (s in seq_along(no_cut)) {
+      cuts <- delete_no_cuts(no_cut[[s]], cuts = cuts)
+      }
     }
-    
-    if (no_cut_l[1] < 0) {
-      no_cut_l_distal <- prot_left + no_cut_l[1]
-      no_cut_l_proximal <- prot_left + no_cut_l[2]
-      cuts <-  cuts[cuts[] > no_cut_l_proximal | cuts[] < no_cut_l_distal]
-    }
-    
-    if (no_cut_r[1] > no_cut_r[2]) {
-      stop('no_cut_r should have the following format: \'c(x,y)\', being x smaller than y, 
-           and both are the Coordinate of the no cut zone relative to the protein position')
-    }
-    if (no_cut_r[2] > 0) {
-      no_cut_r_distal <- prot_right + no_cut_r[2]
-      no_cut_r_proximal <- prot_right + no_cut_r[1]
-      cuts <-  cuts[cuts[] < no_cut_r_proximal | cuts[] > no_cut_r_distal]
+    else{
+      cuts <- delete_no_cuts(no_cut[[1]], cuts = cuts)
     }
     if (length(cuts) == 0) {
       next
@@ -182,8 +203,7 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cu
   parameters <- tibble("prot_mean " = prot_mean,
                        "prot_sd " = prot_sd,
                        "prot_length" = prot_length, 
-                       "no_cut_l" = paste(no_cut_l[1],no_cut_l[2], sep = ","), 
-                       "no_cut_r" = paste(no_cut_r[1],no_cut_r[2], sep = ","), 
+                       "no_cut" = paste(no_cut[1],no_cut[2], sep = ","), 
                        "cut_l" = cut_l, 
                        "cut_r" = cut_r,
                        "reps" = repetitions, 
@@ -191,7 +211,9 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cu
                        "DNA_btm_size" = dna_bottom_size, 
                        "number_cuts_per_kb" = number_cuts_per_kb,
                        "DNA_mean_size" = dna_statistics$mean_DNA_size,
-                       "DNA_size_sd" = dna_statistics$DNA_size_sd)
+                       "DNA_size_sd" = dna_statistics$DNA_size_sd,
+                       "intensity" = intensity,
+                       "fixed_pos_cut" = fixed_pos_cut)
   
   #Create a graph
   if (plot) {
@@ -222,7 +244,7 @@ simulate_chip <- function(prot_mean = 500, prot_sd = 30, prot_length = 15, no_cu
 simulate_composite_peaks <- function(parameters){
   #parameters is a list containing all the parameters that can be modified in the simulate_peak function. Use following model (Cmnd+Shift+c to uncomment all the lines together):
   # a <- list(prot_mean = c(500,550), prot_sd = c(30,30), prot_length = c(35,35), 
-  # no_cut_l = c(c(0,0),c(0,0)), no_cut_r = c(c(0,0),c(0,0)), cut_l = c(0,0), cut_r = c(0,1),
+  # no_cut = c(c(0,0),c(0,0)), cut_l = c(0,0), cut_r = c(0,1),
   # repetitions = c(2000,2000), length = c(2000,2000), read_length = c(75,75), 
   # dna_top_size = c(250,250), dna_bottom_size = c(85,85), plot = c(FALSE,FALSE),
   # number_peaks = 2, names=c("Peak1", "Peak2"))
@@ -239,7 +261,7 @@ simulate_composite_peaks <- function(parameters){
     }
   }
   #For the rest of parameters
-  for (i in 1:15) { #16 is the number of parameters to input to the simulate_chip function
+  for (i in 1:length(parameters)) { # number of parameters to input to the simulate_chip function
     if (length(parameters[[i]]) == 1) {
       while (length(parameters[[i]]) < number_peaks) {
         parameters[[i]] <- c(parameters[[i]],parameters[[i]])
@@ -256,16 +278,14 @@ simulate_composite_peaks <- function(parameters){
     results[[ parameters$names[[w]] ]] <- simulate_chip(prot_mean = parameters$prot_mean[[w]],
                                                         prot_sd = parameters$prot_sd[[w]],
                                                         prot_length = parameters$prot_length[[w]],
-                                                        no_cut_l = parameters$no_cut_l[[w]],
-                                                        no_cut_r = parameters$no_cut_r[[w]],
-                                                        cut_l = parameters$cut_l[[w]],
-                                                        cut_r = parameters$cut_r[[w]],
+                                                        no_cut = parameters$no_cut[[w]],
                                                         repetitions = parameters$repetitions[[w]],
                                                         length = parameters$length[[w]],
                                                         read_length = parameters$read_length[[w]],
                                                         number_cuts_per_kb = parameters$number_cuts_per_kb[[w]],
                                                         dna_bottom_size = parameters$dna_bottom_size[[w]],
                                                         plot = parameters$plot[[w]],
+                                                        fixed_pos_cut = parameters$fixed_pos_cut[[w]],
                                                         intensity = parameters$intensity[[w]])
     # Add the peak name info to each result table
     results[[c(w,1)]] <- results[[c(w,1)]] %>% mutate(peak_name = parameters$names[[w]])
